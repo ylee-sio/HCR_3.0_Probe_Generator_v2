@@ -1,6 +1,18 @@
 # HCR Probe Generator Web App (MVP)
 
-Minimal local web app that wraps `HCRProbeMakerCL-main/v2_0/HCR.py`.
+Minimal local app that wraps `HCRProbeMakerCL-main/v2_0/HCR.py`.
+
+## One-line setup + desktop app
+After cloning the repo, run:
+```
+python start.py
+```
+
+What happens:
+- A local virtual environment is created
+- All Python requirements are installed
+- A desktop app opens with a DNA-style icon
+- A desktop launcher shortcut is created for future runs
 
 ## What it does
 - Fetches a sequence from NCBI using an accession or Entrez Gene ID
@@ -9,29 +21,15 @@ Minimal local web app that wraps `HCRProbeMakerCL-main/v2_0/HCR.py`.
 - Saves all intermediates and outputs in your chosen directory
 - Provides a ZIP download of the results
 
-## Requirements
-- Python 3.9+
-- Internet access to NCBI
-- NCBI email (required by Entrez)
-
-## Setup
-```
-pip install -r requirements.txt
-```
-
-Optionally set these environment variables:
+## Optional environment variables
 ```
 export NCBI_EMAIL="you@lab.org"
 export NCBI_API_KEY="your_key_here"
 ```
 
-## Run
+## Dev Run (optional)
 ```
 uvicorn app.main:app --reload --port 8000
 ```
 
 Open http://127.0.0.1:8000
-
-## Notes
-- For Entrez Gene IDs, the app links to the first available nuccore record.
-- BLAST options are not exposed in this MVP.
