@@ -47,9 +47,28 @@
           </label>
 
           <label>
+            Max homopolymer length (A/T or G/C)
+            <select name="homopolymer_max" id="homopolymer-max" required>
+              <option value="" selected disabled>Select 0–5</option>
+              <option value="0">0</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+
+          <label>
             NCBI accession or Entrez ID
             <input id="target-id" name="target_id" type="text" placeholder="NM_001256799" required disabled />
             <small id="probe-count" class="hint">Select a sequence type first.</small>
+          </label>
+
+          <label>
+            Desired number of probe pairs
+            <input id="desired-pairs" name="desired_pairs" type="number" min="1" placeholder="e.g. 36" disabled />
+            <small class="hint">Enabled after the estimate is available.</small>
           </label>
 
           <div class="grid">
@@ -64,6 +83,43 @@
               </select>
             </label>
           </div>
+
+          <details class="advanced">
+            <summary>Advanced options</summary>
+            <div class="advanced-body">
+              <label>
+                GC range (percent, e.g. 20-70)
+                <input name="gc_range" type="text" placeholder="20-70" />
+              </label>
+
+              <div class="grid">
+                <label>
+                  Max homopolymer A/T run
+                  <input name="poly_at_max" type="number" min="0" max="10" placeholder="Override A/T max" />
+                </label>
+                <label>
+                  Max homopolymer G/C run
+                  <input name="poly_gc_max" type="number" min="0" max="10" placeholder="Override G/C max" />
+                </label>
+              </div>
+
+              <div class="grid">
+                <label>
+                  5' delay (bases)
+                  <input name="five_prime_delay" type="number" min="0" placeholder="e.g. 100" />
+                </label>
+                <label>
+                  Soft min probe pairs
+                  <input name="soft_min_pairs" type="number" min="1" placeholder="e.g. 10" />
+                </label>
+              </div>
+
+              <label>
+                BLAST transcriptome path
+                <input name="blast_ref" type="text" placeholder="/path/to/transcriptome.fa" />
+              </label>
+            </div>
+          </details>
 
           <div class="grid">
             <label>
@@ -112,8 +168,10 @@
       }
 
       const seqType = document.getElementById("sequence-type");
+      const homopolymerMax = document.getElementById("homopolymer-max");
       const targetId = document.getElementById("target-id");
       const probeCount = document.getElementById("probe-count");
+      const desiredPairs = document.getElementById("desired-pairs");
       const emailInput = document.querySelector("input[name='ncbi_email']");
 
       const setHint = (text) => {
@@ -123,15 +181,18 @@
       };
 
       const updateTargetState = () => {
-        if (!seqType || !targetId) return;
-        if (seqType.value) {
+        if (!seqType || !homopolymerMax || !targetId) return;
+        if (seqType.value && homopolymerMax.value) {
           targetId.disabled = false;
           if (!targetId.value) {
             setHint("Enter an accession or Entrez ID to estimate probe pairs.");
           }
         } else {
           targetId.disabled = true;
-          setHint("Select a sequence type first.");
+          setHint("Select sequence type and homopolymer max first.");
+        }
+        if (desiredPairs) {
+          desiredPairs.disabled = true;
         }
       };
 
@@ -139,7 +200,7 @@
       const requestProbeCount = async () => {
         if (!seqType || !targetId) return;
         const target = targetId.value.trim();
-        if (!seqType.value) {
+        if (!seqType.value || !homopolymerMax.value) {
           updateTargetState();
           return;
         }
@@ -152,9 +213,10 @@
           const response = await fetch("/probe-count", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+            body: JSON.stringify({
               target_id: target,
               sequence_type: seqType.value,
+              homopolymer_max: Number(homopolymerMax.value),
               ncbi_email: emailInput ? emailInput.value.trim() : "",
               ncbi_api_key: "",
             }),
@@ -166,6 +228,11 @@
           }
           const recordNote = data.records > 1 ? ` across ${data.records} records` : "";
           setHint(`Estimated probe pairs: ${data.count}${recordNote}.`);
+          if (desiredPairs) {
+            desiredPairs.disabled = false;
+            desiredPairs.max = data.count;
+            desiredPairs.placeholder = data.count ? `<= ${data.count}` : "No probes available";
+          }
         } catch (error) {
           setHint("Unable to estimate probe pairs.");
         }
@@ -173,6 +240,13 @@
 
       if (seqType) {
         seqType.addEventListener("change", () => {
+          updateTargetState();
+          requestProbeCount();
+        });
+      }
+
+      if (homopolymerMax) {
+        homopolymerMax.addEventListener("change", () => {
           updateTargetState();
           requestProbeCount();
         });

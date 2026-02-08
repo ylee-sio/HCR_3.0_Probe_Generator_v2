@@ -43,6 +43,7 @@ class UserInputError(Exception):
 class ProbeCountRequest(BaseModel):
     target_id: str
     sequence_type: str
+    homopolymer_max: int
     ncbi_email: str | None = None
     ncbi_api_key: str | None = None
 
@@ -102,7 +103,7 @@ def _extract_sequences(fasta_text: str) -> list[str]:
     return [str(record.seq) for record in records if str(record.seq).strip()]
 
 
-def _compute_probe_count(seq: str) -> int:
+def _compute_probe_count(seq: str, homopolymer_max: int) -> int:
     if not seq or len(seq) < 52:
         return 0
     clean_seq = cleanup(seq)
@@ -110,8 +111,8 @@ def _compute_probe_count(seq: str) -> int:
         fullseq, cdna, _, hpA, hpT, hpC, hpG, position, table = variables(
             clean_seq,
             "B1",
-            10000,
-            10000,
+            homopolymer_max,
+            homopolymer_max,
             0,
         )
     result = idpotentialprobes(position, fullseq, cdna, table, hpA, hpT, hpC, hpG, 1.0, 0.0)
@@ -127,7 +128,21 @@ def _compute_probe_count(seq: str) -> int:
         return 0
 
 
-def _run_hcr(amp: str, fasta_path: Path, output_dir: Path) -> subprocess.CompletedProcess:
+def _run_hcr(
+    amp: str,
+    fasta_path: Path,
+    output_dir: Path,
+    homopolymer_max: int,
+    desired_pairs: int | None,
+    gc_range: str | None,
+    poly_at_max: int | None,
+    poly_gc_max: int | None,
+    five_prime_delay: int | None,
+    blast_ref: str | None,
+    soft_min_pairs: int | None,
+) -> subprocess.CompletedProcess:
+    poly_at_value = poly_at_max if poly_at_max is not None else homopolymer_max
+    poly_gc_value = poly_gc_max if poly_gc_max is not None else homopolymer_max
     cmd = [
         os.fspath(Path(os.sys.executable)),
         os.fspath(HCR_SCRIPT),
@@ -137,7 +152,21 @@ def _run_hcr(amp: str, fasta_path: Path, output_dir: Path) -> subprocess.Complet
         os.fspath(fasta_path),
         "-o",
         os.fspath(output_dir),
+        "-polyAT",
+        str(poly_at_value),
+        "-polyCG",
+        str(poly_gc_value),
     ]
+    if gc_range:
+        cmd.extend(["-gc", gc_range])
+    if five_prime_delay is not None:
+        cmd.extend(["-pause", str(five_prime_delay)])
+    if blast_ref:
+        cmd.extend(["-blast", blast_ref])
+    if soft_min_pairs is not None:
+        cmd.extend(["-min", str(soft_min_pairs)])
+    if desired_pairs is not None:
+        cmd.extend(["-max", str(desired_pairs)])
     return subprocess.run(
         cmd,
         cwd=HCR_ROOT,
@@ -186,7 +215,7 @@ def probe_count(payload: ProbeCountRequest):
         _setup_entrez(payload.ncbi_email, payload.ncbi_api_key, require_email=False)
         fasta_text = _fetch_fasta(target_id, payload.sequence_type)
         sequences = _extract_sequences(fasta_text)
-        total = sum(_compute_probe_count(seq) for seq in sequences)
+        total = sum(_compute_probe_count(seq, payload.homopolymer_max) for seq in sequences)
         return JSONResponse(
             {
                 "count": total,
@@ -207,6 +236,14 @@ def run(
     target_id: str = Form(...),
     sequence_type: str = Form("cds"),
     amplifier: str = Form("B1"),
+    homopolymer_max: int = Form(...),
+    desired_pairs: int | None = Form(None),
+    gc_range: str | None = Form(None),
+    poly_at_max: int | None = Form(None),
+    poly_gc_max: int | None = Form(None),
+    five_prime_delay: int | None = Form(None),
+    blast_ref: str | None = Form(None),
+    soft_min_pairs: int | None = Form(None),
     ncbi_email: str = Form(""),
     ncbi_api_key: str = Form(""),
 ):
@@ -220,7 +257,19 @@ def run(
         fasta_path = output_dir / "input.fasta"
         fasta_path.write_text(fasta_text)
 
-        result = _run_hcr(amplifier.strip().upper(), fasta_path, output_dir)
+        result = _run_hcr(
+            amplifier.strip().upper(),
+            fasta_path,
+            output_dir,
+            homopolymer_max,
+            desired_pairs,
+            gc_range.strip() if gc_range else None,
+            poly_at_max,
+            poly_gc_max,
+            five_prime_delay,
+            blast_ref.strip() if blast_ref else None,
+            soft_min_pairs,
+        )
 
         log_path = output_dir / "hcr_run.log"
         log_path.write_text(result.stdout + "\n" + result.stderr)
