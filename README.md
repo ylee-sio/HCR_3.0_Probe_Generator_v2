@@ -145,12 +145,12 @@ In slight contrast to the above structures, we've found that having the fluoroph
 2. Synthesis scale: 100nmol
 3. Enter the following sequences (two separate oligos, obviously):
 
-This was the exact that was entered in the IDT ordering portal for B2H1-5P-ALEXA647:
+This was the exact sequence/code that was entered in the IDT ordering portal for B2H1-5P-ALEXA647:
 ```
 /5Alex647N//iSp18/GGCGGTTTACTGGATGATTGATGAGGATTTACGAGGAGCTCAGTCCATCCTCGTAAATCCTCATCAATCATC
 ```
 
-This was the exact that was entered in the IDT ordering portal for B2H2-3P-ALEXA647:
+This was the exact sequence/code that was entered in the IDT ordering portal for B2H2-3P-ALEXA647:
 ```
 CCTCGTAAATCCTCATCAATCATCCAGTAAACCGCCGATGATTGATGAGGATTTACGAGGATGGACTGAGCT/iSp18//3AlexF647N/
 ```
