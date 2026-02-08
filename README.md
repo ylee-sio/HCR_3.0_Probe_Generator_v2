@@ -18,6 +18,7 @@ For **batch mode**:
 ## One‑line install + run
 From the repo root:
 ```
+cd [DOWNLOAD_LOCATION]/HCR_3.0_Probe_Generator_v2-main
 python3 hcr-webapp/start.py
 ```
 
