@@ -33,6 +33,10 @@
           <a class="button ghost" href="/batch/edit/{{ batch_id }}">Back</a>
           <button class="button" id="generate">Generate pools</button>
         </div>
+        <div id="progress" class="progress hidden">
+          <div class="progress-bar"></div>
+          <div class="hint">Generating pools… this can take a while.</div>
+        </div>
       </section>
     </main>
 
@@ -206,6 +210,7 @@
         savePools();
         generateButton.disabled = true;
         generateButton.textContent = "Generating...";
+        document.getElementById("progress").classList.remove("hidden");
         try {
           const response = await fetch(`/batch/generate/${batchId}`, {
             method: "POST",
@@ -217,15 +222,54 @@
             alert(data.error || "Pool generation failed.");
             generateButton.disabled = false;
             generateButton.textContent = "Generate pools";
+            document.getElementById("progress").classList.add("hidden");
             return;
           }
-          window.location.href = `/batch/results/${batchId}`;
+          pollProgress();
         } catch (error) {
           alert("Pool generation failed.");
           generateButton.disabled = false;
           generateButton.textContent = "Generate pools";
+          document.getElementById("progress").classList.add("hidden");
         }
       });
+
+      const progressBar = document.querySelector(".progress-bar");
+      const progressText = document.querySelector("#progress .hint");
+
+      const pollProgress = async () => {
+        try {
+          const response = await fetch(`/batch/progress/${batchId}`);
+          const data = await response.json();
+          if (!response.ok) {
+            progressText.textContent = "Unable to read progress.";
+            return;
+          }
+          if (data.status === "error") {
+            progressText.textContent = data.error || "Pool generation failed.";
+            return;
+          }
+          if (data.status === "done") {
+            progressBar.style.width = "100%";
+            progressText.textContent = "Complete. Redirecting…";
+            window.location.href = `/batch/results/${batchId}`;
+            return;
+          }
+          const total = data.total || 0;
+          const done = data.done || 0;
+          if (total > 0) {
+            const pct = Math.min(100, Math.round((done / total) * 100));
+            progressBar.style.width = `${pct}%`;
+            progressText.textContent = `Generating pools… ${done}/${total} targets`;
+          } else {
+            progressBar.style.width = "10%";
+            progressText.textContent = "Starting…";
+          }
+          setTimeout(pollProgress, 1000);
+        } catch (error) {
+          progressText.textContent = "Unable to read progress.";
+        }
+      };
     </script>
   </body>
 </html>

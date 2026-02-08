@@ -382,6 +382,34 @@ button.small {
   background: #fffaf4;
 }
 
+.progress {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.progress.hidden {
+  display: none;
+}
+
+.progress-bar {
+  height: 10px;
+  border-radius: 999px;
+  width: 10%;
+  background: linear-gradient(90deg, #d38b5d 0%, #f2b58b 50%, #d38b5d 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: -200% 0%;
+  }
+}
+
 @media (max-width: 900px) {
   .pool-layout {
     grid-template-columns: 1fr;

@@ -10,7 +10,7 @@ from pathlib import Path
 import random
 from uuid import uuid4
 
-from fastapi import FastAPI, Form, Request, UploadFile, File
+from fastapi import FastAPI, Form, Request, UploadFile, File, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -37,6 +37,7 @@ templates = Jinja2Templates(directory=APP_ROOT / "templates")
 
 JOBS: dict[str, dict[str, str]] = {}
 BATCHES: dict[str, dict] = {}
+BATCH_PROGRESS: dict[str, dict] = {}
 
 
 class UserInputError(Exception):
@@ -112,14 +113,29 @@ def _resolve_nuccore_id(identifier: str) -> str:
 
 
 def _fetch_fasta(identifier: str, seq_kind: str) -> str:
+    import time
+    try:
+        from urllib.error import HTTPError
+    except Exception:
+        HTTPError = Exception
+
     nuccore_id = _resolve_nuccore_id(identifier)
     rettype = "fasta_cds_na" if seq_kind == "cds" else "fasta"
-    handle = Entrez.efetch(db="nuccore", id=nuccore_id, rettype=rettype, retmode="text")
-    data = handle.read()
-    handle.close()
-    if not data.strip():
-        raise UserInputError("NCBI returned empty sequence data for this ID.")
-    return data
+
+    retries = 3
+    for attempt in range(retries):
+        try:
+            handle = Entrez.efetch(db="nuccore", id=nuccore_id, rettype=rettype, retmode="text")
+            data = handle.read()
+            handle.close()
+            if not data.strip():
+                raise UserInputError("NCBI returned empty sequence data for this ID.")
+            return data
+        except HTTPError as exc:
+            if getattr(exc, "code", None) == 429 and attempt < retries - 1:
+                time.sleep(1 + attempt)
+                continue
+            raise
 
 
 def _extract_sequences(fasta_text: str) -> list[str]:
@@ -256,10 +272,16 @@ def _find_opool_file(target_dir: Path) -> Path | None:
     return files[0] if files else None
 
 
-def _generate_pool_output(batch: dict, pools: dict) -> list[dict]:
+def _generate_pool_output(batch: dict, pools: dict, progress: dict | None = None) -> list[dict]:
     _setup_entrez(None, None, require_email=False)
     output_dir = Path(batch["output_dir"])
     targets = {t["id"]: t for t in _resolve_batch_targets(batch)}
+
+    total_targets = sum(len(ids) for ids in pools.values())
+    if progress is not None:
+        progress["total"] = total_targets
+        progress["done"] = 0
+        progress["status"] = "running"
 
     results = []
     for pool_id, target_ids in pools.items():
@@ -316,6 +338,8 @@ def _generate_pool_output(batch: dict, pools: dict) -> list[dict]:
             opool_file = _find_opool_file(target_dir)
             if not opool_file:
                 mapping_lines.append(f"{target_label}: No oPool file found")
+                if progress is not None:
+                    progress["done"] += 1
                 continue
 
             df = pd.read_excel(opool_file)
@@ -334,6 +358,8 @@ def _generate_pool_output(batch: dict, pools: dict) -> list[dict]:
             )
             row_cursor = end_row + 1
             pooled_rows.append(df)
+            if progress is not None:
+                progress["done"] += 1
 
         if pooled_rows:
             pooled_df = pd.concat(pooled_rows, ignore_index=True)
@@ -354,6 +380,8 @@ def _generate_pool_output(batch: dict, pools: dict) -> list[dict]:
             }
         )
 
+    if progress is not None:
+        progress["status"] = "done"
     return results
 
 @app.get("/", response_class=HTMLResponse)
@@ -511,8 +539,24 @@ def batch_pools(request: Request, batch_id: str):
     )
 
 
+def _run_batch_generation(batch_id: str, pools: dict):
+    batch = BATCHES.get(batch_id)
+    if not batch:
+        return
+    progress = BATCH_PROGRESS.get(batch_id)
+    try:
+        results = _generate_pool_output(batch, pools, progress)
+        batch["results"] = results
+        if progress is not None:
+            progress["status"] = "done"
+    except Exception as exc:
+        if progress is not None:
+            progress["status"] = "error"
+            progress["error"] = str(exc)
+
+
 @app.post("/batch/generate/{batch_id}")
-async def batch_generate(request: Request, batch_id: str):
+async def batch_generate(request: Request, batch_id: str, background_tasks: BackgroundTasks):
     batch = BATCHES.get(batch_id)
     if not batch:
         return JSONResponse({"error": "Unknown batch id."}, status_code=404)
@@ -521,12 +565,9 @@ async def batch_generate(request: Request, batch_id: str):
     if not pools:
         return JSONResponse({"error": "No pools provided."}, status_code=400)
     batch["pools"] = pools
-    try:
-        results = _generate_pool_output(batch, pools)
-    except UserInputError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=400)
-    batch["results"] = results
-    return JSONResponse({"results": results, "output_dir": batch["output_dir"]})
+    BATCH_PROGRESS[batch_id] = {"status": "queued", "total": 0, "done": 0, "error": None}
+    background_tasks.add_task(_run_batch_generation, batch_id, pools)
+    return JSONResponse({"status": "started"})
 
 
 @app.get("/batch/results/{batch_id}", response_class=HTMLResponse)
@@ -543,6 +584,14 @@ def batch_results(request: Request, batch_id: str):
             "results": batch.get("results", []),
         },
     )
+
+
+@app.get("/batch/progress/{batch_id}")
+def batch_progress(batch_id: str):
+    progress = BATCH_PROGRESS.get(batch_id)
+    if not progress:
+        return JSONResponse({"status": "unknown"}, status_code=404)
+    return JSONResponse(progress)
 
 
 
