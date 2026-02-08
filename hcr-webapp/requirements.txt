@@ -3,3 +3,6 @@ uvicorn
 jinja2
 biopython
 python-multipart
+pandas
+openpyxl
+numpy

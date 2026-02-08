@@ -104,20 +104,6 @@ def index(request: Request):
 def pick_dir():
     try:
         try:
-            import tkinter as tk
-            from tkinter import filedialog
-
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes("-topmost", True)
-            path = filedialog.askdirectory()
-            root.destroy()
-            if path:
-                return JSONResponse({"selected": True, "path": path})
-        except Exception:
-            pass
-
-        try:
             result = subprocess.run(
                 ["osascript", "-e", 'POSIX path of (choose folder)'],
                 capture_output=True,

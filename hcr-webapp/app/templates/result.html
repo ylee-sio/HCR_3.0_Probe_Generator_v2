@@ -20,7 +20,10 @@
             <h2>Output directory</h2>
             <p class="mono">{{ output_dir }}</p>
           </div>
-          <a class="button" href="/download/{{ job_id }}">Download ZIP</a>
+          <div class="actions">
+            <a class="button" href="/download/{{ job_id }}">Download ZIP</a>
+            <a class="button ghost" href="/">Generate another</a>
+          </div>
         </div>
 
         <details>

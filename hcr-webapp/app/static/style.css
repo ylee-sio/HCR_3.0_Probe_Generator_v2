@@ -182,6 +182,12 @@ button:hover,
   flex-wrap: wrap;
 }
 
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .log {
   background: #14110f;
   color: #f2ebe3;

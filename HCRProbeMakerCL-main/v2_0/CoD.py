@@ -2,31 +2,17 @@ import os, sys
 
 def creatorofdirs():
     sys.tracebacklimit=0
-    MEDIA_ROOT = str(os.path.abspath(os.path.expandvars(os.path.expanduser(os.path.join(os.curdir,"ProbemakerOut")))))
-    MEDIA_FASTA = str(os.path.join(MEDIA_ROOT,"FASTA"))
-    MEDIA_OPOOL = str(os.path.join(MEDIA_ROOT,"OPOOL")) 
-    MEDIA_OLIGO = str(os.path.join(MEDIA_ROOT,"OLIGO"))
-    MEDIA_TXT = str(os.path.join(MEDIA_ROOT,"REPORTS"))
-    BLAST_ROOT = "blastn"
+    media_root = os.path.abspath(os.path.expandvars(os.path.expanduser(os.path.join(os.curdir, "ProbemakerOut"))))
+    media_fasta = os.path.join(media_root, "FASTA")
+    media_opool = os.path.join(media_root, "OPOOL")
+    media_oligo = os.path.join(media_root, "OLIGO")
+    media_txt = os.path.join(media_root, "REPORTS")
+    blast_root = "blastn"
 
-    if os.path.exists(MEDIA_ROOT):
-        pass
-    else:
-        MEDIA_ROOT=os.mkdir(MEDIA_ROOT)
-    if os.path.exists(MEDIA_FASTA):
-        pass
-    else:
-        MEDIA_FASTA = os.mkdir(MEDIA_FASTA)
-    if os.path.exists(MEDIA_OPOOL):
-        pass
-    else:
-        MEDIA_OPOOL = os.mkdir(MEDIA_OPOOL)
-    if os.path.exists(MEDIA_OLIGO):
-        pass
-    else:
-        MEDIA_OLIGO = os.mkdir(MEDIA_OLIGO)
-    if os.path.exists(MEDIA_TXT):
-        pass
-    else:
-        MEDIA_TXT = os.mkdir(MEDIA_TXT)
-    return([str(MEDIA_ROOT),str(BLAST_ROOT),str(MEDIA_FASTA),str(MEDIA_OPOOL),str(MEDIA_OLIGO),str(MEDIA_TXT)])
+    os.makedirs(media_root, exist_ok=True)
+    os.makedirs(media_fasta, exist_ok=True)
+    os.makedirs(media_opool, exist_ok=True)
+    os.makedirs(media_oligo, exist_ok=True)
+    os.makedirs(media_txt, exist_ok=True)
+
+    return([str(media_root), str(blast_root), str(media_fasta), str(media_opool), str(media_oligo), str(media_txt)])
