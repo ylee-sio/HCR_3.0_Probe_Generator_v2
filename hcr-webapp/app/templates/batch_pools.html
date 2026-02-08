@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Batch Pools - HCR Probe Generator</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="badge">Batch Mode</div>
+        <h1>Build Oligo Pools</h1>
+        <p class="lede">Drag targets into pools (max 5 per pool). Add pools as needed.</p>
+      </section>
+
+      <section class="card">
+        <div class="pool-layout">
+          <div class="pool-column">
+            <h2>Targets</h2>
+            <div id="target-list" class="target-list"></div>
+          </div>
+          <div class="pool-column">
+            <div class="pool-header">
+              <h2>Pools</h2>
+              <button class="ghost" id="add-pool" type="button">+</button>
+            </div>
+            <div id="pool-list" class="pool-list"></div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <a class="button ghost" href="/batch/edit/{{ batch_id }}">Back</a>
+          <button class="button" id="generate">Generate pools</button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const batchId = "{{ batch_id }}";
+      const targets = {{ targets | tojson }};
+
+      const targetList = document.getElementById("target-list");
+      const poolList = document.getElementById("pool-list");
+      const addPoolButton = document.getElementById("add-pool");
+      const generateButton = document.getElementById("generate");
+
+      let poolCounter = 1;
+      const pools = [];
+      const storageKey = `batch_pools_${batchId}`;
+
+      const renderTarget = (target) => {
+        const item = document.createElement("div");
+        item.className = "target-item";
+        item.draggable = true;
+        item.dataset.targetId = target.id;
+        item.innerHTML = `
+          <div class="mono">${target.accession}</div>
+          <div class="hint">${target.name}</div>
+          <div class="hint">${target.sequence_type || ""} | homopolymer ${target.homopolymer_max ?? ""} | ${target.amplifier || ""}</div>
+          <div class="hint">Desired pairs: ${target.desired_pairs || "auto"}</div>
+        `;
+        item.addEventListener("dragstart", (event) => {
+          event.dataTransfer.setData("text/plain", target.id);
+        });
+        return item;
+      };
+
+      const renderPool = (pool) => {
+        const container = document.createElement("div");
+        container.className = "pool-card";
+        container.dataset.poolId = pool.id;
+        container.innerHTML = `
+          <div class="pool-title">Pool ${pool.name}</div>
+          <div class="pool-drop">Drop targets here</div>
+        `;
+        const dropZone = container.querySelector(".pool-drop");
+        dropZone.addEventListener("dragover", (event) => {
+          event.preventDefault();
+          dropZone.classList.add("hover");
+        });
+        dropZone.addEventListener("dragleave", () => dropZone.classList.remove("hover"));
+        dropZone.addEventListener("drop", (event) => {
+          event.preventDefault();
+          dropZone.classList.remove("hover");
+          const targetId = event.dataTransfer.getData("text/plain");
+          handleDrop(pool, targetId);
+        });
+        pool.container = container;
+        return container;
+      };
+
+      const createPool = () => {
+        const pool = { id: `pool_${poolCounter}`, name: poolCounter, targets: [] };
+        poolCounter += 1;
+        pools.push(pool);
+        poolList.appendChild(renderPool(pool));
+        savePools();
+      };
+
+      const findTarget = (targetId) => targets.find((t) => t.id === targetId);
+
+      const updatePoolDisplay = (pool) => {
+        const dropZone = pool.container.querySelector(".pool-drop");
+        dropZone.innerHTML = "";
+        if (pool.targets.length === 0) {
+          dropZone.textContent = "Drop targets here";
+          return;
+        }
+        pool.targets.forEach((targetId) => {
+          const target = findTarget(targetId);
+          const pill = document.createElement("div");
+          pill.className = "pool-target";
+          pill.innerHTML = `
+            <div class="mono">${target.accession}</div>
+            <div class="hint">${target.name} • ${target.amplifier}</div>
+          `;
+          dropZone.appendChild(pill);
+        });
+      };
+
+      const poolContainingTarget = (targetId) => pools.filter((pool) => pool.targets.includes(targetId));
+
+      const savePools = () => {
+        const payload = pools.map((pool) => ({ id: pool.id, name: pool.name, targets: pool.targets }));
+        localStorage.setItem(storageKey, JSON.stringify(payload));
+      };
+
+      const loadPools = () => {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return false;
+        try {
+          const data = JSON.parse(raw);
+          data.forEach((saved) => {
+            const pool = { id: saved.id, name: saved.name, targets: saved.targets || [] };
+            pools.push(pool);
+            poolList.appendChild(renderPool(pool));
+            updatePoolDisplay(pool);
+            poolCounter = Math.max(poolCounter, pool.name + 1);
+          });
+          return pools.length > 0;
+        } catch (error) {
+          return false;
+        }
+      };
+
+      const handleDrop = (pool, targetId) => {
+        const target = findTarget(targetId);
+        if (!target) return;
+
+        if (pool.targets.includes(targetId)) {
+          if (!confirm("This target is already in this pool. Add duplicate anyway?")) {
+            return;
+          }
+        }
+
+        if (pool.targets.length >= 5) {
+          alert("Each pool can contain a maximum of five targets.");
+          return;
+        }
+
+        const sameAmp = pool.targets.some((tid) => {
+          const t = findTarget(tid);
+          return t && t.amplifier === target.amplifier;
+        });
+        if (sameAmp) {
+          if (!confirm("This pool already contains a target with the same amplifier. Add anyway?")) {
+            return;
+          }
+        }
+
+        const otherPools = poolContainingTarget(targetId).filter((p) => p.id !== pool.id);
+        if (otherPools.length > 0) {
+          const poolNames = otherPools
+            .map((p) => `Pool ${p.name} (Amplifier ${target.amplifier})`)
+            .join(", ");
+          const msg = `This target already exists in ${poolNames}. Add anyway?`;
+          if (!confirm(msg)) {
+            return;
+          }
+        }
+
+        pool.targets.push(targetId);
+        updatePoolDisplay(pool);
+        savePools();
+      };
+
+      targets.forEach((target) => targetList.appendChild(renderTarget(target)));
+      if (!loadPools()) {
+        createPool();
+      }
+
+      addPoolButton.addEventListener("click", createPool);
+
+      generateButton.addEventListener("click", async () => {
+        const poolPayload = {};
+        pools.forEach((pool) => {
+          if (pool.targets.length > 0) {
+            poolPayload[pool.id] = pool.targets;
+          }
+        });
+        if (Object.keys(poolPayload).length === 0) {
+          alert("Add at least one target to a pool.");
+          return;
+        }
+        savePools();
+        generateButton.disabled = true;
+        generateButton.textContent = "Generating...";
+        try {
+          const response = await fetch(`/batch/generate/${batchId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pools: poolPayload }),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            alert(data.error || "Pool generation failed.");
+            generateButton.disabled = false;
+            generateButton.textContent = "Generate pools";
+            return;
+          }
+          window.location.href = `/batch/results/${batchId}`;
+        } catch (error) {
+          alert("Pool generation failed.");
+          generateButton.disabled = false;
+          generateButton.textContent = "Generate pools";
+        }
+      });
+    </script>
+  </body>
+</html>

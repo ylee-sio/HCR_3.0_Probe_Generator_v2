@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Batch Results - HCR Probe Generator</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="badge success">Complete</div>
+        <h1>Batch pools generated</h1>
+        <p class="lede">Outputs are saved under your project directory.</p>
+      </section>
+
+      <section class="card">
+        <h2>Project directory</h2>
+        <p class="mono">{{ output_dir }}</p>
+
+        <div class="result-list">
+          {% for pool in results %}
+            <div class="result-card">
+              <h3>{{ pool.pool_id }}</h3>
+              <p class="mono">{{ pool.path }}</p>
+              {% if pool.opool %}
+                <p class="hint">Oligo pool file: {{ pool.opool }}</p>
+              {% else %}
+                <p class="hint">No oPool file generated.</p>
+              {% endif %}
+              <p class="hint">Mapping file: {{ pool.mapping }}</p>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="actions">
+          <a class="button ghost" href="/batch/pools/{{ batch_id }}">Back to pools</a>
+          <a class="button" href="/batch">Start new batch</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

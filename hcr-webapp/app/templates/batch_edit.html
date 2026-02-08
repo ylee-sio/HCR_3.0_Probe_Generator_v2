@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Batch Options - HCR Probe Generator</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="badge">Batch Mode</div>
+        <h1>Configure Targets</h1>
+        <p class="lede">Set options per target or apply batch options to all.</p>
+      </section>
+
+      <section class="card">
+        <details class="advanced" open>
+          <summary>Batch options</summary>
+          <div class="advanced-body">
+            <label class="checkbox">
+              <input type="checkbox" name="apply_to_all" id="apply-to-all" />
+              Apply batch options to all targets
+            </label>
+
+            <div class="grid">
+              <label>
+                Sequence type
+                <select name="batch_sequence_type" id="batch-sequence-type">
+                  <option value="">(leave per-target)</option>
+                  <option value="cds">CDS only</option>
+                  <option value="mrna">Full mRNA</option>
+                </select>
+              </label>
+              <label>
+                Max homopolymer length (0-5)
+                <select name="batch_homopolymer_max" id="batch-homopolymer-max">
+                  <option value="">(leave per-target)</option>
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </label>
+              <label>
+                Amplifier
+                <select name="batch_amplifier" id="batch-amplifier">
+                  <option value="">(leave per-target)</option>
+                  <option value="B1">B1</option>
+                  <option value="B2">B2</option>
+                  <option value="B3">B3</option>
+                  <option value="B4">B4</option>
+                  <option value="B5">B5</option>
+                </select>
+              </label>
+              <label>
+                Desired probe pairs
+                <input name="batch_desired_pairs" id="batch-desired-pairs" type="number" min="1" placeholder="Optional" />
+              </label>
+            </div>
+
+            <div class="grid">
+              <label>
+                GC range (percent, e.g. 20-70)
+                <input name="batch_gc_range" id="batch-gc-range" type="text" placeholder="20-70" />
+              </label>
+              <label>
+                5' delay (bases)
+                <input name="batch_five_prime_delay" id="batch-five-prime-delay" type="number" min="0" placeholder="e.g. 100" />
+              </label>
+              <label>
+                Soft min probe pairs
+                <input name="batch_soft_min_pairs" id="batch-soft-min" type="number" min="1" placeholder="e.g. 10" />
+              </label>
+            </div>
+
+            <div class="grid">
+              <label>
+                Max homopolymer A/T run
+                <input name="batch_poly_at_max" id="batch-poly-at" type="number" min="0" max="10" placeholder="Override A/T max" />
+              </label>
+              <label>
+                Max homopolymer G/C run
+                <input name="batch_poly_gc_max" id="batch-poly-gc" type="number" min="0" max="10" placeholder="Override G/C max" />
+              </label>
+            </div>
+
+            <label>
+              BLAST transcriptome path
+              <input name="batch_blast_ref" id="batch-blast" type="text" placeholder="/path/to/transcriptome.fa" />
+            </label>
+          </div>
+        </details>
+      </section>
+
+      <section class="card">
+        <form id="batch-edit-form" class="form">
+          <div class="table">
+            <div class="table-header">
+              <div>Target</div>
+              <div>Sequence type</div>
+              <div>Homopolymer max</div>
+              <div>Amplifier</div>
+              <div>Desired pairs</div>
+              <div>Estimated max</div>
+            </div>
+            {% for target in targets %}
+              <div class="table-row" data-index="{{ loop.index0 }}" data-accession="{{ target.accession }}">
+                <div>
+                  <div class="mono">{{ target.accession }}</div>
+                  <div class="hint">{{ target.name }}</div>
+                </div>
+                <div>
+                  <select name="target_{{ loop.index0 }}_sequence_type" class="row-sequence-type" required>
+                    <option value="" selected disabled>Select</option>
+                    <option value="cds">CDS</option>
+                    <option value="mrna">mRNA</option>
+                  </select>
+                </div>
+                <div>
+                  <select name="target_{{ loop.index0 }}_homopolymer_max" class="row-homopolymer" required>
+                    <option value="" selected disabled>0-5</option>
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                </div>
+                <div>
+                  <select name="target_{{ loop.index0 }}_amplifier" class="row-amplifier" required>
+                    <option value="" selected disabled>Select</option>
+                    <option value="B1">B1</option>
+                    <option value="B2">B2</option>
+                    <option value="B3">B3</option>
+                    <option value="B4">B4</option>
+                    <option value="B5">B5</option>
+                  </select>
+                </div>
+                <div>
+                  <input name="target_{{ loop.index0 }}_desired_pairs" class="row-desired" type="number" min="1" placeholder="Optional" disabled />
+                </div>
+                <div class="row-estimate hint">Select options to estimate.</div>
+
+                <input type="hidden" name="target_{{ loop.index0 }}_gc_range" />
+                <input type="hidden" name="target_{{ loop.index0 }}_poly_at_max" />
+                <input type="hidden" name="target_{{ loop.index0 }}_poly_gc_max" />
+                <input type="hidden" name="target_{{ loop.index0 }}_five_prime_delay" />
+                <input type="hidden" name="target_{{ loop.index0 }}_soft_min_pairs" />
+                <input type="hidden" name="target_{{ loop.index0 }}_blast_ref" />
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="actions">
+            <a class="button ghost" href="/batch">Back</a>
+            <button type="submit">Continue to pooling</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      const batchId = "{{ batch_id }}";
+      const storedOptions = {{ options | tojson }};
+      const applyToAll = document.getElementById("apply-to-all");
+      const batchSequence = document.getElementById("batch-sequence-type");
+      const batchHomopolymer = document.getElementById("batch-homopolymer-max");
+      const batchAmplifier = document.getElementById("batch-amplifier");
+      const batchDesired = document.getElementById("batch-desired-pairs");
+      const batchGc = document.getElementById("batch-gc-range");
+      const batchPolyAt = document.getElementById("batch-poly-at");
+      const batchPolyGc = document.getElementById("batch-poly-gc");
+      const batchDelay = document.getElementById("batch-five-prime-delay");
+      const batchSoftMin = document.getElementById("batch-soft-min");
+      const batchBlast = document.getElementById("batch-blast");
+
+      const rows = Array.from(document.querySelectorAll(".table-row"));
+
+      const syncRowAdvanced = (row) => {
+        row.querySelector("input[name$='_gc_range']").value = batchGc.value || "";
+        row.querySelector("input[name$='_poly_at_max']").value = batchPolyAt.value || "";
+        row.querySelector("input[name$='_poly_gc_max']").value = batchPolyGc.value || "";
+        row.querySelector("input[name$='_five_prime_delay']").value = batchDelay.value || "";
+        row.querySelector("input[name$='_soft_min_pairs']").value = batchSoftMin.value || "";
+        row.querySelector("input[name$='_blast_ref']").value = batchBlast.value || "";
+      };
+
+      const setRowDisabled = (row, disabled) => {
+        row.querySelectorAll("select, input[type='number']").forEach((input) => {
+          if (input.classList.contains("row-desired")) {
+            input.disabled = disabled;
+          } else {
+            input.disabled = disabled;
+          }
+        });
+      };
+
+      const applyBatchToRows = () => {
+        rows.forEach((row) => {
+          syncRowAdvanced(row);
+          if (applyToAll.checked) {
+            if (batchSequence.value) row.querySelector(".row-sequence-type").value = batchSequence.value;
+            if (batchHomopolymer.value) row.querySelector(".row-homopolymer").value = batchHomopolymer.value;
+            if (batchAmplifier.value) row.querySelector(".row-amplifier").value = batchAmplifier.value;
+            if (batchDesired.value) row.querySelector(".row-desired").value = batchDesired.value;
+            setRowDisabled(row, true);
+          } else {
+            setRowDisabled(row, false);
+          }
+        });
+      };
+
+      const estimateRow = async (row) => {
+        const accession = row.dataset.accession;
+        const sequenceType = row.querySelector(".row-sequence-type").value;
+        const homopolymer = row.querySelector(".row-homopolymer").value;
+        const estimateEl = row.querySelector(".row-estimate");
+        if (!sequenceType || !homopolymer) {
+          estimateEl.textContent = "Select options to estimate.";
+          return;
+        }
+        estimateEl.textContent = "Calculating...";
+        try {
+          const response = await fetch("/probe-count", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              target_id: accession,
+              sequence_type: sequenceType,
+              homopolymer_max: Number(homopolymer),
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            estimateEl.textContent = data.error || "Unable to estimate.";
+            return;
+          }
+          estimateEl.textContent = `Max pairs: ${data.count}`;
+          const desiredInput = row.querySelector(".row-desired");
+          if (desiredInput) {
+            desiredInput.disabled = false;
+            desiredInput.max = data.count;
+            desiredInput.placeholder = data.count ? `<= ${data.count}` : "None";
+          }
+        } catch (error) {
+          estimateEl.textContent = "Unable to estimate.";
+        }
+      };
+
+      const estimateAll = () => rows.forEach((row) => estimateRow(row));
+
+      rows.forEach((row) => {
+        row.querySelectorAll("select").forEach((select) => {
+          select.addEventListener("change", () => estimateRow(row));
+        });
+        row.querySelector(".row-desired").addEventListener("input", () => {});
+      });
+
+      [applyToAll, batchSequence, batchHomopolymer, batchAmplifier, batchDesired, batchGc, batchPolyAt, batchPolyGc, batchDelay, batchSoftMin, batchBlast].forEach((el) => {
+        el.addEventListener("change", () => {
+          applyBatchToRows();
+          estimateAll();
+        });
+      });
+
+      const form = document.getElementById("batch-edit-form");
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (applyToAll.checked) {
+          if (!batchSequence.value || !batchHomopolymer.value || !batchAmplifier.value) {
+            alert("Select sequence type, homopolymer max, and amplifier in batch options when applying to all.");
+            return;
+          }
+        } else {
+          for (const row of rows) {
+            const seq = row.querySelector(".row-sequence-type").value;
+            const homo = row.querySelector(".row-homopolymer").value;
+            const amp = row.querySelector(".row-amplifier").value;
+            if (!seq || !homo || !amp) {
+              alert("Each target requires sequence type, homopolymer max, and amplifier.");
+              return;
+            }
+          }
+        }
+        rows.forEach((row) => syncRowAdvanced(row));
+        const formData = new FormData(form);
+        if (applyToAll.checked) {
+          formData.set("apply_to_all", "on");
+        }
+        formData.set("batch_sequence_type", batchSequence.value);
+        formData.set("batch_homopolymer_max", batchHomopolymer.value);
+        formData.set("batch_amplifier", batchAmplifier.value);
+        formData.set("batch_desired_pairs", batchDesired.value);
+        formData.set("batch_gc_range", batchGc.value);
+        formData.set("batch_poly_at_max", batchPolyAt.value);
+        formData.set("batch_poly_gc_max", batchPolyGc.value);
+        formData.set("batch_five_prime_delay", batchDelay.value);
+        formData.set("batch_soft_min_pairs", batchSoftMin.value);
+        formData.set("batch_blast_ref", batchBlast.value);
+
+        const response = await fetch(`/batch/edit/${batchId}`, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          alert(data.error || "Unable to save batch options.");
+          return;
+        }
+        window.location.href = `/batch/pools/${batchId}`;
+      });
+
+      const hydrateStored = () => {
+        if (!storedOptions || !storedOptions.batch) return;
+        const batch = storedOptions.batch;
+        if (batch.apply_to_all) {
+          applyToAll.checked = true;
+        }
+        if (batch.sequence_type) batchSequence.value = batch.sequence_type;
+        if (batch.homopolymer_max) batchHomopolymer.value = batch.homopolymer_max;
+        if (batch.amplifier) batchAmplifier.value = batch.amplifier;
+        if (batch.desired_pairs) batchDesired.value = batch.desired_pairs;
+        if (batch.gc_range) batchGc.value = batch.gc_range;
+        if (batch.poly_at_max) batchPolyAt.value = batch.poly_at_max;
+        if (batch.poly_gc_max) batchPolyGc.value = batch.poly_gc_max;
+        if (batch.five_prime_delay) batchDelay.value = batch.five_prime_delay;
+        if (batch.soft_min_pairs) batchSoftMin.value = batch.soft_min_pairs;
+        if (batch.blast_ref) batchBlast.value = batch.blast_ref;
+
+        if (storedOptions.per_target) {
+          rows.forEach((row, idx) => {
+            const opts = storedOptions.per_target[idx] || {};
+            const seq = row.querySelector(".row-sequence-type");
+            const homo = row.querySelector(".row-homopolymer");
+            const amp = row.querySelector(".row-amplifier");
+            const desired = row.querySelector(".row-desired");
+            if (opts.sequence_type) seq.value = opts.sequence_type;
+            if (opts.homopolymer_max) homo.value = opts.homopolymer_max;
+            if (opts.amplifier) amp.value = opts.amplifier;
+            if (opts.desired_pairs) desired.value = opts.desired_pairs;
+          });
+        }
+      };
+
+      hydrateStored();
+      applyBatchToRows();
+    </script>
+  </body>
+</html>
