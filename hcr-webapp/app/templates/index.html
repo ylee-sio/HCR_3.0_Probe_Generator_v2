@@ -38,19 +38,21 @@
           </label>
 
           <label>
+            Sequence type
+            <select name="sequence_type" id="sequence-type" required>
+              <option value="" selected disabled>Select CDS or mRNA</option>
+              <option value="cds">CDS only</option>
+              <option value="mrna">Full mRNA</option>
+            </select>
+          </label>
+
+          <label>
             NCBI accession or Entrez ID
-            <input name="target_id" type="text" placeholder="NM_001256799" required />
+            <input id="target-id" name="target_id" type="text" placeholder="NM_001256799" required disabled />
+            <small id="probe-count" class="hint">Select a sequence type first.</small>
           </label>
 
           <div class="grid">
-            <label>
-              Sequence type
-              <select name="sequence_type">
-                <option value="cds">CDS only</option>
-                <option value="mrna">Full mRNA</option>
-              </select>
-            </label>
-
             <label>
               Amplifier
               <select name="amplifier">
@@ -108,6 +110,89 @@
           }
         });
       }
+
+      const seqType = document.getElementById("sequence-type");
+      const targetId = document.getElementById("target-id");
+      const probeCount = document.getElementById("probe-count");
+      const emailInput = document.querySelector("input[name='ncbi_email']");
+
+      const setHint = (text) => {
+        if (probeCount) {
+          probeCount.textContent = text;
+        }
+      };
+
+      const updateTargetState = () => {
+        if (!seqType || !targetId) return;
+        if (seqType.value) {
+          targetId.disabled = false;
+          if (!targetId.value) {
+            setHint("Enter an accession or Entrez ID to estimate probe pairs.");
+          }
+        } else {
+          targetId.disabled = true;
+          setHint("Select a sequence type first.");
+        }
+      };
+
+      let debounceTimer;
+      const requestProbeCount = async () => {
+        if (!seqType || !targetId) return;
+        const target = targetId.value.trim();
+        if (!seqType.value) {
+          updateTargetState();
+          return;
+        }
+        if (!target) {
+          setHint("Enter an accession or Entrez ID to estimate probe pairs.");
+          return;
+        }
+        setHint("Calculating probe pairs...");
+        try {
+          const response = await fetch("/probe-count", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+              target_id: target,
+              sequence_type: seqType.value,
+              ncbi_email: emailInput ? emailInput.value.trim() : "",
+              ncbi_api_key: "",
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            setHint(data.error || "Unable to estimate probe pairs.");
+            return;
+          }
+          const recordNote = data.records > 1 ? ` across ${data.records} records` : "";
+          setHint(`Estimated probe pairs: ${data.count}${recordNote}.`);
+        } catch (error) {
+          setHint("Unable to estimate probe pairs.");
+        }
+      };
+
+      if (seqType) {
+        seqType.addEventListener("change", () => {
+          updateTargetState();
+          requestProbeCount();
+        });
+      }
+
+      if (targetId) {
+        targetId.addEventListener("input", () => {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(requestProbeCount, 600);
+        });
+      }
+
+      if (emailInput) {
+        emailInput.addEventListener("input", () => {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(requestProbeCount, 600);
+        });
+      }
+
+      updateTargetState();
     </script>
   </body>
 </html>

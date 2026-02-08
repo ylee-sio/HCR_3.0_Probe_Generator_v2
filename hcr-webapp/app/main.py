@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import io
 import os
 import shutil
 import subprocess
+import sys
+import contextlib
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,14 +13,21 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from Bio import Entrez
+from Bio import SeqIO
 
 
 APP_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_ROOT.parent.parent
 HCR_ROOT = PROJECT_ROOT / "HCRProbeMakerCL-main" / "v2_0"
 HCR_SCRIPT = HCR_ROOT / "HCR.py"
+
+if str(HCR_ROOT) not in sys.path:
+    sys.path.append(str(HCR_ROOT))
+
+from mainscript_core import cleanup, variables, idpotentialprobes  # noqa: E402
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=APP_ROOT / "static"), name="static")
@@ -30,6 +40,13 @@ class UserInputError(Exception):
     pass
 
 
+class ProbeCountRequest(BaseModel):
+    target_id: str
+    sequence_type: str
+    ncbi_email: str | None = None
+    ncbi_api_key: str | None = None
+
+
 def _normalize_output_dir(base_dir: str, project_name: str) -> Path:
     if not base_dir.strip():
         raise UserInputError("Output base directory is required.")
@@ -40,11 +57,13 @@ def _normalize_output_dir(base_dir: str, project_name: str) -> Path:
     return base
 
 
-def _setup_entrez(email: str | None, api_key: str | None) -> None:
+def _setup_entrez(email: str | None, api_key: str | None, require_email: bool = True) -> None:
     env_email = os.environ.get("NCBI_EMAIL", "").strip()
     Entrez.email = (email or env_email).strip()
     if not Entrez.email:
-        raise UserInputError("NCBI email is required (set NCBI_EMAIL or provide it in the form).")
+        if require_email:
+            raise UserInputError("NCBI email is required (set NCBI_EMAIL or provide it in the form).")
+        Entrez.email = "anonymous@example.com"
     env_key = os.environ.get("NCBI_API_KEY", "").strip()
     Entrez.api_key = (api_key or env_key).strip() or None
 
@@ -73,6 +92,39 @@ def _fetch_fasta(identifier: str, seq_kind: str) -> str:
     if not data.strip():
         raise UserInputError("NCBI returned empty sequence data for this ID.")
     return data
+
+
+def _extract_sequences(fasta_text: str) -> list[str]:
+    handle = io.StringIO(fasta_text)
+    records = list(SeqIO.parse(handle, "fasta"))
+    if not records:
+        raise UserInputError("NCBI returned no FASTA records for this ID.")
+    return [str(record.seq) for record in records if str(record.seq).strip()]
+
+
+def _compute_probe_count(seq: str) -> int:
+    if not seq or len(seq) < 52:
+        return 0
+    clean_seq = cleanup(seq)
+    with contextlib.redirect_stdout(io.StringIO()):
+        fullseq, cdna, _, hpA, hpT, hpC, hpG, position, table = variables(
+            clean_seq,
+            "B1",
+            10000,
+            10000,
+            0,
+        )
+    result = idpotentialprobes(position, fullseq, cdna, table, hpA, hpT, hpC, hpG, 1.0, 0.0)
+    try:
+        if isinstance(result, (list, tuple)) and len(result) == 2 and result[0] == 0 and result[1] == 0:
+            return 0
+    except Exception:
+        pass
+    newlist = result[0]
+    try:
+        return int(len(newlist))
+    except Exception:
+        return 0
 
 
 def _run_hcr(amp: str, fasta_path: Path, output_dir: Path) -> subprocess.CompletedProcess:
@@ -122,6 +174,31 @@ def pick_dir():
         return JSONResponse({"selected": False, "error": str(exc)}, status_code=500)
 
 
+@app.post("/probe-count")
+def probe_count(payload: ProbeCountRequest):
+    try:
+        target_id = payload.target_id.strip()
+        if not target_id:
+            raise UserInputError("Target ID is required.")
+        if payload.sequence_type not in {"cds", "mrna"}:
+            raise UserInputError("Sequence type must be CDS or mRNA.")
+
+        _setup_entrez(payload.ncbi_email, payload.ncbi_api_key, require_email=False)
+        fasta_text = _fetch_fasta(target_id, payload.sequence_type)
+        sequences = _extract_sequences(fasta_text)
+        total = sum(_compute_probe_count(seq) for seq in sequences)
+        return JSONResponse(
+            {
+                "count": total,
+                "records": len(sequences),
+            }
+        )
+    except UserInputError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.post("/run", response_class=HTMLResponse)
 def run(
     request: Request,
@@ -137,7 +214,7 @@ def run(
         output_dir = _normalize_output_dir(output_base_dir, project_name)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        _setup_entrez(ncbi_email, ncbi_api_key)
+        _setup_entrez(ncbi_email, ncbi_api_key, require_email=True)
         fasta_text = _fetch_fasta(target_id.strip(), sequence_type)
 
         fasta_path = output_dir / "input.fasta"

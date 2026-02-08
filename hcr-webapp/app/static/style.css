@@ -169,6 +169,11 @@ button:hover,
   color: var(--muted);
 }
 
+.hint {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
 .mono {
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.95rem;
