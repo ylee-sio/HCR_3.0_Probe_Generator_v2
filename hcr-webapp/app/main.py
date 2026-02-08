@@ -270,6 +270,7 @@ def _generate_pool_output(batch: dict, pools: dict) -> list[dict]:
         pooled_rows = []
         mapping_lines = []
         row_cursor = 1
+        mapping_lines.append(f"Pool ID: HL_POOL_{rand_id}")
 
         for tid in target_ids:
             target = targets.get(tid)
@@ -323,6 +324,8 @@ def _generate_pool_output(batch: dict, pools: dict) -> list[dict]:
             else:
                 df = df.iloc[:, :2]
                 df.columns = ["Pool name", "Sequence"]
+
+            df["Pool name"] = f"HL_POOL_{rand_id}"
 
             start_row = row_cursor
             end_row = row_cursor + len(df) - 1
