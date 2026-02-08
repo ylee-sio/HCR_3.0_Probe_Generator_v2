@@ -126,7 +126,7 @@ B5H2:
 CTCACTCCCAATCTCTATCTACCCTACAAATCCAATgggTAgATAgAgATTgggAgTgAgTgATATgAAgTg
 ```
 
-The options for fluorophores can be found here: https://www.idtdna.com/site/Catalog/Modifications/Dyes
+The options for fluorophores can be found here: https://www.idtdna.com/site/Catalog/Modifications/Dyes.
 We've typically ordered hairpin amplifier oligos with Alexa Fluors. We have attempted to conjugate hairpin amplifier oligos with other fluorophores such as ATTO425 and ATTO490LS (these are long Stokes shift fluorophores not offered on IDT), but it is an absolute pain to do this yourself.
 
 Generally, the structure for amplifier hairpin oligos are as follows (and this is what is demonstrated in Choi et al. 2014):
