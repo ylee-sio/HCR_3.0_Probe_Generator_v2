@@ -256,6 +256,15 @@ button:hover,
   letter-spacing: 0.08em;
 }
 
+.divider-note {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: #8d857d;
+}
+
 .manual-list {
   display: grid;
   gap: 12px;
