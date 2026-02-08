@@ -18,8 +18,8 @@ def _in_venv() -> bool:
     return sys.prefix != getattr(sys, "base_prefix", sys.prefix)
 
 
-def _run(cmd: list[str]) -> None:
-    subprocess.run(cmd, check=True)
+def _run(cmd: list[str], cwd: Path | None = None) -> None:
+    subprocess.run(cmd, check=True, cwd=cwd)
 
 
 def main() -> int:
@@ -29,20 +29,29 @@ def main() -> int:
         py = _venv_python()
         _run([str(py), "-m", "pip", "install", "--upgrade", "pip"])
         _run([str(py), "-m", "pip", "install", "-r", str(ROOT / "requirements.txt")])
-        _run([str(py), str(ROOT / "start.py"), "--run"])
+        _run([str(py), str(ROOT / "start.py"), "--run"], cwd=ROOT)
         return 0
 
     if "--run" in sys.argv:
-        _run([
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "app.main:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "8000",
-        ])
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(ROOT)
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "uvicorn",
+                "app.main:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8000",
+                "--app-dir",
+                str(ROOT),
+            ],
+            check=True,
+            cwd=ROOT,
+            env=env,
+        )
         return 0
 
     print("Run: python3 hcr-webapp/start.py")
