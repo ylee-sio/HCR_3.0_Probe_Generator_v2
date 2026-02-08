@@ -1,6 +1,6 @@
 # HCR 3.0 PROBEGEN V2
 
-A local desktop app for designing Hybridization Chain Reaction (HCR 3.0) probe pools from NCBI accessions or Entrez Gene IDs. It wraps `HCRProbeMakerCL-main/v2_0/HCR.py` and provides a friendly UI for single‑target and batch workflows, including automated pool assembly and IDT oPool ordering files.
+A local web app for designing Hybridization Chain Reaction (HCR 3.0) probe pools from NCBI accessions or Entrez Gene IDs. It wraps `HCRProbeMakerCL-main/v2_0/HCR.py` and provides a UI for single‑target and batch workflows, including automated pool assembly and IDT oPool ordering files.
 
 ## What you need to provide (minimum)
 For **single‑target mode**:
@@ -16,16 +16,15 @@ For **batch mode**:
 - For each target: sequence type, max homopolymer length (0–5), amplifier
 
 ## One‑line install + run
-After downloading or cloning the repo, run:
+From the repo root:
 ```
-python hcr-webapp/start.py
+python3 hcr-webapp/start.py
 ```
 
 This will:
 - Create a local virtual environment
-- Install all requirements
-- Create a desktop launcher (with a DNA‑style icon)
-- Open the desktop app
+- Install all Python requirements
+- Launch the web app at `http://127.0.0.1:8000`
 
 ## Optional NCBI settings
 NCBI recommends including an email for API calls:
@@ -64,7 +63,7 @@ export NCBI_API_KEY="your_key_here"
 
 ## Repository layout
 - `HCRProbeMakerCL-main/` — upstream probe generator CLI
-- `hcr-webapp/` — desktop app + web UI
+- `hcr-webapp/` — web app UI
 
 ## Troubleshooting
 - If you see `HTTP Error 429: Too Many Requests`, the app automatically retries with a short delay.

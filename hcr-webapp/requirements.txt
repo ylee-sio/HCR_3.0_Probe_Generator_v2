@@ -6,4 +6,3 @@ python-multipart
 pandas
 openpyxl
 numpy
-pywebview
