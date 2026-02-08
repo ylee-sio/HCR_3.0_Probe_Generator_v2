@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HCR Probe Generator - Result</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="badge success">Complete</div>
+        <h1>Probe build finished</h1>
+        <p class="lede">Results are ready. Download the ZIP or inspect the output directory.</p>
+      </section>
+
+      <section class="card">
+        <div class="results">
+          <div>
+            <h2>Output directory</h2>
+            <p class="mono">{{ output_dir }}</p>
+          </div>
+          <a class="button" href="/download/{{ job_id }}">Download ZIP</a>
+        </div>
+
+        <details>
+          <summary>View run log</summary>
+          <pre class="log">{{ stdout }}
+{{ stderr }}</pre>
+        </details>
+      </section>
+
+      <section class="notes">
+        <h3>Next</h3>
+        <ul>
+          <li>Open the <span class="mono">ProbemakerOut</span> folder to see TXT and XLSX files.</li>
+          <li>If probes look empty, try CDS vs full mRNA or a different amplifier.</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

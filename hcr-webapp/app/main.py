@@ -1,0 +1,203 @@
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from Bio import Entrez
+
+
+APP_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = APP_ROOT.parent.parent
+HCR_ROOT = PROJECT_ROOT / "HCRProbeMakerCL-main" / "v2_0"
+HCR_SCRIPT = HCR_ROOT / "HCR.py"
+
+app = FastAPI()
+app.mount("/static", StaticFiles(directory=APP_ROOT / "static"), name="static")
+templates = Jinja2Templates(directory=APP_ROOT / "templates")
+
+JOBS: dict[str, dict[str, str]] = {}
+
+
+class UserInputError(Exception):
+    pass
+
+
+def _normalize_output_dir(base_dir: str, project_name: str) -> Path:
+    if not base_dir.strip():
+        raise UserInputError("Output base directory is required.")
+    base = Path(base_dir).expanduser().resolve()
+    if project_name.strip():
+        safe_name = Path(project_name).name
+        return base / safe_name
+    return base
+
+
+def _setup_entrez(email: str | None, api_key: str | None) -> None:
+    env_email = os.environ.get("NCBI_EMAIL", "").strip()
+    Entrez.email = (email or env_email).strip()
+    if not Entrez.email:
+        raise UserInputError("NCBI email is required (set NCBI_EMAIL or provide it in the form).")
+    env_key = os.environ.get("NCBI_API_KEY", "").strip()
+    Entrez.api_key = (api_key or env_key).strip() or None
+
+
+def _resolve_nuccore_id(identifier: str) -> str:
+    if identifier.isdigit():
+        handle = Entrez.elink(dbfrom="gene", db="nuccore", id=identifier)
+        record = Entrez.read(handle)
+        handle.close()
+        links = record[0].get("LinkSetDb", [])
+        if not links:
+            raise UserInputError("No nuccore records linked to this Entrez Gene ID.")
+        ids = links[0].get("Link", [])
+        if not ids:
+            raise UserInputError("No nuccore records linked to this Entrez Gene ID.")
+        return ids[0]["Id"]
+    return identifier
+
+
+def _fetch_fasta(identifier: str, seq_kind: str) -> str:
+    nuccore_id = _resolve_nuccore_id(identifier)
+    rettype = "fasta_cds_na" if seq_kind == "cds" else "fasta"
+    handle = Entrez.efetch(db="nuccore", id=nuccore_id, rettype=rettype, retmode="text")
+    data = handle.read()
+    handle.close()
+    if not data.strip():
+        raise UserInputError("NCBI returned empty sequence data for this ID.")
+    return data
+
+
+def _run_hcr(amp: str, fasta_path: Path, output_dir: Path) -> subprocess.CompletedProcess:
+    cmd = [
+        os.fspath(Path(os.sys.executable)),
+        os.fspath(HCR_SCRIPT),
+        "-amp",
+        amp,
+        "-in",
+        os.fspath(fasta_path),
+        "-o",
+        os.fspath(output_dir),
+    ]
+    return subprocess.run(
+        cmd,
+        cwd=HCR_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+@app.get("/", response_class=HTMLResponse)
+def index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.post("/pick-dir")
+def pick_dir():
+    try:
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            path = filedialog.askdirectory()
+            root.destroy()
+            if path:
+                return JSONResponse({"selected": True, "path": path})
+        except Exception:
+            pass
+
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", 'POSIX path of (choose folder)'],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                path = result.stdout.strip()
+                if path:
+                    return JSONResponse({"selected": True, "path": path})
+        except Exception:
+            pass
+
+        return JSONResponse({"selected": False, "error": "Folder picker unavailable."})
+    except Exception as exc:
+        return JSONResponse({"selected": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/run", response_class=HTMLResponse)
+def run(
+    request: Request,
+    output_base_dir: str = Form(...),
+    project_name: str = Form(""),
+    target_id: str = Form(...),
+    sequence_type: str = Form("cds"),
+    amplifier: str = Form("B1"),
+    ncbi_email: str = Form(""),
+    ncbi_api_key: str = Form(""),
+):
+    try:
+        output_dir = _normalize_output_dir(output_base_dir, project_name)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        _setup_entrez(ncbi_email, ncbi_api_key)
+        fasta_text = _fetch_fasta(target_id.strip(), sequence_type)
+
+        fasta_path = output_dir / "input.fasta"
+        fasta_path.write_text(fasta_text)
+
+        result = _run_hcr(amplifier.strip().upper(), fasta_path, output_dir)
+
+        log_path = output_dir / "hcr_run.log"
+        log_path.write_text(result.stdout + "\n" + result.stderr)
+
+        zip_base = output_dir / "hcr_output"
+        zip_path = Path(shutil.make_archive(os.fspath(zip_base), "zip", root_dir=output_dir))
+
+        job_id = str(uuid4())
+        JOBS[job_id] = {
+            "zip_path": os.fspath(zip_path),
+            "output_dir": os.fspath(output_dir),
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
+
+        return templates.TemplateResponse(
+            "result.html",
+            {
+                "request": request,
+                "job_id": job_id,
+                "output_dir": os.fspath(output_dir),
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            },
+        )
+    except UserInputError as exc:
+        return templates.TemplateResponse(
+            "index.html",
+            {"request": request, "error": str(exc)},
+            status_code=400,
+        )
+
+
+@app.get("/download/{job_id}")
+def download(job_id: str):
+    job = JOBS.get(job_id)
+    if not job:
+        return HTMLResponse("Unknown job id.", status_code=404)
+    return FileResponse(
+        job["zip_path"],
+        filename=Path(job["zip_path"]).name,
+        media_type="application/zip",
+    )

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HCR Probe Generator</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="badge">Local MVP</div>
+        <h1>HCR Probe Generator</h1>
+        <p class="lede">
+          Generate HCR 3.0 probe pools from NCBI accessions or Entrez IDs.
+          Choose CDS or full mRNA and select B1–B5 amplifiers.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Run a Probe Build</h2>
+        <form method="post" action="/run" class="form">
+          {% if error %}
+            <div class="error">{{ error }}</div>
+          {% endif %}
+
+          <label>
+            Output base directory
+            <div class="input-row">
+              <input id="output-base-dir" name="output_base_dir" type="text" placeholder="/Users/you/hcr_runs" required />
+              <button class="ghost" type="button" id="browse-dir">Browse</button>
+            </div>
+          </label>
+
+          <label>
+            Project name (folder)
+            <input name="project_name" type="text" placeholder="sea_urchin_hcr_01" />
+          </label>
+
+          <label>
+            NCBI accession or Entrez ID
+            <input name="target_id" type="text" placeholder="NM_001256799" required />
+          </label>
+
+          <div class="grid">
+            <label>
+              Sequence type
+              <select name="sequence_type">
+                <option value="cds">CDS only</option>
+                <option value="mrna">Full mRNA</option>
+              </select>
+            </label>
+
+            <label>
+              Amplifier
+              <select name="amplifier">
+                <option value="B1">B1</option>
+                <option value="B2">B2</option>
+                <option value="B3">B3</option>
+                <option value="B4">B4</option>
+                <option value="B5">B5</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid">
+            <label>
+              NCBI email (required)
+              <input name="ncbi_email" type="email" placeholder="you@lab.org" />
+            </label>
+            <label>
+              NCBI API key (optional)
+              <input name="ncbi_api_key" type="text" placeholder="abcdef123456" />
+            </label>
+          </div>
+
+          <button type="submit">Generate probes</button>
+        </form>
+      </section>
+
+      <section class="notes">
+        <h3>Notes</h3>
+        <ul>
+          <li>Outputs and intermediate files are saved under your chosen directory.</li>
+          <li>The app wraps <span class="mono">HCRProbeMakerCL-main/v2_0/HCR.py</span>.</li>
+          <li>BLAST filtering is not exposed in this MVP.</li>
+        </ul>
+      </section>
+    </main>
+    <script>
+      const browseButton = document.getElementById("browse-dir");
+      const outputInput = document.getElementById("output-base-dir");
+      if (browseButton && outputInput) {
+        browseButton.addEventListener("click", async () => {
+          browseButton.disabled = true;
+          try {
+            const response = await fetch("/pick-dir", { method: "POST" });
+            const data = await response.json();
+            if (data.selected && data.path) {
+              outputInput.value = data.path;
+            } else if (data.error) {
+              alert("Folder picker error: " + data.error);
+            }
+          } catch (error) {
+            alert("Folder picker failed. Please type the path manually.");
+          } finally {
+            browseButton.disabled = false;
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
